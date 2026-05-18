@@ -24,7 +24,8 @@ class ProcessResponse {
 }
 
 class ApiService {
-  static const String backendUrl = 'http://10.0.2.2:8000';
+  // Exemplo se fosse usar Vercel ou Render
+  static const String backendUrl = 'https://topo-api.onrender.com';
 
   static Future<ProcessResponse> processImage({
     required String imagePath,
