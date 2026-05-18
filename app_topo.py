@@ -8,6 +8,120 @@ from PIL import Image
 from google import genai
 from google.genai import types
 
+import streamlit as st
+
+def aplicar_css_personalizado():
+    st.markdown("""
+    <style>
+        /* Oculta o menu hambúrguer, o header e o footer do Streamlit */
+        #MainMenu {visibility: hidden;}
+        header {visibility: hidden;}
+        footer {visibility: hidden;}
+
+        /* Estilização moderna para botões primários */
+        .stButton > button {
+            background-color: #2563EB; /* Azul moderno */
+            color: white;
+            border-radius: 8px;
+            border: none;
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease-in-out;
+            width: 100%;
+        }
+        
+        /* Efeito de hover e clique nos botões */
+        .stButton > button:hover {
+            background-color: #1D4ED8;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+            transform: translateY(-2px);
+            color: white;
+        }
+        
+        .stButton > button:active {
+            transform: translateY(0px);
+        }
+
+        /* Suaviza as bordas dos campos de input e upload */
+        .stTextInput > div > div > input {
+            border-radius: 8px;
+            border: 1px solid #E5E7EB;
+        }
+        
+        .stFileUploader {
+            border-radius: 12px;
+            border: 2px dashed #93C5FD !important;
+            background-color: #F8FAFC;
+        }
+
+        /* Ajusta o padding superior que o Streamlit deixa muito grande */
+        .block-container {
+            padding-top: 2rem !important;
+            padding-bottom: 2rem !important;
+        }
+        
+        /* Títulos com fonte mais elegante */
+        h1, h2, h3 {
+            font-family: 'Inter', sans-serif;
+            color: #1E293B;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Aplica as configurações globais da página ANTES de qualquer outro elemento
+st.set_page_config(
+    page_title="Separador Topo", 
+    page_icon="🏔️", 
+    layout="wide", # Usa todo o espaço horizontal da tela
+    initial_sidebar_state="expanded"
+)
+
+# Chama a função de CSS
+aplicar_css_personalizado()
+
+# Seu código continua aqui...
+st.title("🏔️ Separador Topo")
+
+
+@st.cache_data(show_spinner="Processando imagem com OpenCV...")
+def processar_imagem(imagem_bytes):
+    # Seu código cv2 aqui...
+    return imagem_processada
+
+@st.cache_data(show_spinner="Consultando o Gemini...")
+def consultar_gemini(prompt):
+    # Seu código genai aqui...
+    return resposta
+
+
+if st.button("Analisar Dados"):
+    with st.spinner('Analisando topografia usando IA... Por favor aguarde.'):
+        # código longo aqui...
+        resultado = consultar_gemini("Analise os dados...")
+    
+    st.toast('Análise concluída com sucesso!', icon='🎉')
+    st.success("Tudo pronto!")
+# Controles na barra lateral
+with st.sidebar:
+    st.header("⚙️ Configurações")
+    fator_suavizacao = st.slider("Fator de Suavização (OpenCV)", 1, 10, 5)
+    
+# Área avançada oculta na tela principal
+with st.expander("Ver dados brutos (Debug)"):
+    st.write("Dados extraídos:")
+    st.json({"status": "ok", "pontos": 154})
+if "processamento_concluido" not in st.session_state:
+    st.session_state.processamento_concluido = False
+
+# Se o botão for clicado, salvamos o estado
+if st.button("Processar"):
+    st.session_state.processamento_concluido = True
+
+# Só exibe os botões de download se o estado for True
+if st.session_state.processamento_concluido:
+    st.download_button("Baixar Resultados", "dados...", "resultado.txt")
+
+
 # Configuração da página do aplicativo (Tema Dark e Amigável)
 st.set_page_config(page_title="Personalizados da Rô - Estúdio IA", page_icon="✂️", layout="wide")
 
