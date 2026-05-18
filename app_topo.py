@@ -110,6 +110,27 @@ def aplicar_css_personalizado():
                 color: #475569;
             }
 
+            .config-card {
+                background: #ffffff;
+                border-radius: 22px;
+                padding: 1.6rem;
+                border: 1px solid #E2E8F0;
+                box-shadow: 0 24px 64px rgba(15, 23, 42, 0.06);
+                margin-bottom: 1.5rem;
+            }
+
+            .config-card h3 {
+                margin-top: 0;
+                margin-bottom: 0.5rem;
+                color: #0F172A;
+            }
+
+            .config-card p {
+                margin: 0;
+                color: #475569;
+                line-height: 1.7;
+            }
+
             .stButton > button,
             .stDownloadButton > button {
                 background-color: #2563EB;
@@ -251,7 +272,15 @@ def main():
         unsafe_allow_html=True,
     )
 
-    st.write("---")
+    st.markdown(
+        """
+        <div class='config-card'>
+            <h3>Configurações</h3>
+            <p>Insira sua chave Gemini e gerencie o processo diretamente aqui. Caso a barra lateral não esteja visível, você ainda verá as instruções e dicas abaixo.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     with st.sidebar:
         st.header("🔑 Configurações")
