@@ -1,0 +1,13 @@
+version: '3.9'
+
+services:
+  topo-backend:
+    build:
+      context: ./backend_api
+      dockerfile: Dockerfile
+    image: topo-backend:latest
+    ports:
+      - 8000:8000
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    restart: unless-stopped
