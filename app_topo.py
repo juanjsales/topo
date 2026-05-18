@@ -4,6 +4,7 @@ Paleta extraída do logo: coral #E8736A, rosa claro #F2A99B, branco #FFFFFF
 Modal de engrenagem para configurar a API Key (sem sidebar obrigatória).
 """
 
+import base64
 import io
 import os
 import time
@@ -326,6 +327,28 @@ def gerar_folha(client, descricao: str, imagem: Image.Image) -> Image.Image:
             img = part.as_image()
             if isinstance(img, Image.Image):
                 return img.convert("RGB")
+
+        inline_data = getattr(part, "inline_data", None)
+        if inline_data is not None:
+            try:
+                raw_data = inline_data
+                if isinstance(raw_data, str):
+                    raw_data = base64.b64decode(raw_data)
+                img = Image.open(io.BytesIO(raw_data))
+                return img.convert("RGB")
+            except Exception:
+                pass
+
+        part_image = getattr(part, "image", None)
+        if isinstance(part_image, Image.Image):
+            return part_image.convert("RGB")
+        if isinstance(part_image, (bytes, bytearray)):
+            try:
+                img = Image.open(io.BytesIO(part_image))
+                return img.convert("RGB")
+            except Exception:
+                pass
+
     raise RuntimeError("Gemini não retornou imagem válida. Tente novamente.")
 
 
@@ -461,7 +484,7 @@ def main():
 
     col_img, col_info = st.columns([1, 1])
     with col_img:
-        st.image(img_original, caption="Referência enviada", use_container_width=True)
+        st.image(img_original, caption="Referência enviada", width="stretch")
     with col_info:
         st.markdown(
             f"""
@@ -484,7 +507,7 @@ def main():
     st.markdown("<br>", unsafe_allow_html=True)
     col_btn, _ = st.columns([1, 2])
     with col_btn:
-        iniciar = st.button("✂️ Gerar Folha de Corte", use_container_width=True)
+        iniciar = st.button("✂️ Gerar Folha de Corte", width="stretch")
 
     if not iniciar:
         return
@@ -525,25 +548,25 @@ def main():
         col_c, col_m = st.columns(2)
         with col_c:
             st.markdown("<div class='result-wrap'><h4>🖼️ Folha de Elementos</h4>", unsafe_allow_html=True)
-            st.image(img_colorida, caption="Pronta para imprimir", use_container_width=True)
+            st.image(img_colorida, caption="Pronta para imprimir", width="stretch")
             st.download_button(
                 "💾 Baixar Folha Colorida (.png)",
                 data=imagem_para_bytes(img_colorida),
                 file_name="topo_elementos.png",
                 mime="image/png",
-                use_container_width=True,
+                width="stretch",
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
         with col_m:
             st.markdown("<div class='result-wrap'><h4>✂️ Máscara de Corte</h4>", unsafe_allow_html=True)
-            st.image(mascara, caption="Importe no Silhouette Studio", use_container_width=True)
+            st.image(mascara, caption="Importe no Silhouette Studio", width="stretch")
             st.download_button(
                 "💾 Baixar Máscara de Corte (.png)",
                 data=imagem_para_bytes(mascara),
                 file_name="topo_mascara_corte.png",
                 mime="image/png",
-                use_container_width=True,
+                width="stretch",
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
