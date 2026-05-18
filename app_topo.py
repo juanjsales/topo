@@ -229,41 +229,5 @@ if __name__ == "__main__":
 
 
 
-# ==============================================================================
-# LÓGICA DO MOTOR DO AGENTE (PROMPTS ENGENHARIA DE IA)
-# ==============================================================================
-PROMPT_ANALISE = """
-[SYSTEM DIRECTIVE: SEMANTIC SEGMENTATION & ATTENTION ISOLATION]
-You operate as an advanced vision-language parser specializing in vector graphics and papercraft die-cut engineering.
-
-[INPUT MATRIX EVALUATION]
-The input image may contain UI metadata, mobile screenshot elements (status bars, navigation docks, buttons, likes, comments, frames, dark-mode borders), and background noise (tablecloths, room backgrounds, cake structures, frosting, confectionery).
-
-[EXCLUSION FILTER - MANDATORY]
-- DROP_ALL: UI_elements, text_overlays_from_social_media, timestamp_metadata, borders.
-- IGNORE: cake_body, cake_stands, candles, background_scenery.
-
-[ATTENTION WEIGHTS]
-- Focus: 1.0 -> [cake_topper_appliques, papercraft_elements, individual_character_cutouts, name_banners, age_tags].
-- Style Extraction: Identify geometry, exact HEX-color palette, stroke widths, inner paths, illustration archetype (flat vector, cute chibi, rounded children illustration).
-
-[OUTPUT SPECIFICATION]
-Generate a highly descriptive, structural visual prompt in English. Describe ONLY the isolated papercraft elements found.
-"""
-
-def criar_prompt_geracao(descricao_elementos):
-    return f"""
-    [TASK: IMAGE-TO-IMAGE HIGH-FIDELITY SYNTHESIS]
-    [REFERENCE_IMAGE_INFLUENCE: STYLE=1.0, COLOR_PALETTE=1.0, TEXT_CONTENT=1.0, LAYOUT=0.0]
-    
-    A commercial, ready-to-print sheet for papercraft cake toppers and scrapfesta. 
-    The sheet MUST contain exactly these semantic concepts: {descricao_elementos}.
-    
-    Background: Solid, uniform, pure white background (#FFFFFF). Absolute zero gradient, zero shadows.
-    Layout: Multi-element asset sheet. All components must be structurally ISOLATED, separated by clean white spaces, explicitly arranged in a non-overlapping grid grid-like layout perfect for computer vision contour tracing (Silhouette print-and-cut).
-    Rendering: High-definition crisp vector asset style, 2D flat design, cute children illustration, vibrant saturated colors, bold defined clean edges, high-contrast borders.
-    """
-
-# ==============================================================================
 
 
