@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -93,82 +94,163 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Text(
+        title,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Personalizados da Rô'),
+        centerTitle: true,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'API Key Gemini',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _apiKeyController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  hintText: 'Cole sua API Key aqui',
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildSectionTitle('API Key Gemini'),
+                      TextField(
+                        controller: _apiKeyController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          hintText: 'Cole sua API Key aqui',
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.photo_library),
-                label: const Text('Selecionar imagem'),
-                onPressed: _pickImage,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildSectionTitle('Escolher imagem'),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.photo_library),
+                        label: const Text('Selecionar imagem'),
+                        onPressed: _pickImage,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (_selectedImage != null) ...[
+                        Text('Imagem selecionada: ${_selectedImage!.name}'),
+                        const SizedBox(height: 12),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(
+                            File(_selectedImage!.path),
+                            fit: BoxFit.cover,
+                            height: 220,
+                          ),
+                        ),
+                      ] else ...[
+                        const Text('Nenhuma imagem selecionada ainda.'),
+                      ],
+                    ],
+                  ),
                 ),
               ),
-              if (_selectedImage != null) ...[
-                const SizedBox(height: 16),
-                Text('Escolhido: ${_selectedImage!.name}'),
-                const SizedBox(height: 16),
-                Image.file(
-                  File(_selectedImage!.path),
-                  fit: BoxFit.contain,
-                  height: 220,
-                ),
-              ],
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 icon: const Icon(Icons.play_arrow),
                 label: const Text('Processar no servidor'),
                 onPressed: _isLoading ? null : _processImage,
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
               const SizedBox(height: 16),
               if (_isLoading) const Center(child: CircularProgressIndicator()),
               if (_errorMessage != null) ...[
                 const SizedBox(height: 16),
-                Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                Card(
+                  color: Colors.red.shade50,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ),
               ],
               if (_description != null) ...[
                 const SizedBox(height: 16),
-                const Text('Descrição recebida:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text(_description!),
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildSectionTitle('Descrição recebida'),
+                        Text(_description!),
+                      ],
+                    ),
+                  ),
+                ),
               ],
               if (_colorImage != null) ...[
                 const SizedBox(height: 16),
-                const Text('Folha Colorida', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Image.memory(_colorImage!, fit: BoxFit.contain),
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildSectionTitle('Folha Colorida'),
+                        Image.memory(_colorImage!, fit: BoxFit.contain),
+                      ],
+                    ),
+                  ),
+                ),
               ],
               if (_maskImage != null) ...[
                 const SizedBox(height: 16),
-                const Text('Máscara de Corte', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Image.memory(_maskImage!, fit: BoxFit.contain),
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildSectionTitle('Máscara de Corte'),
+                        Image.memory(_maskImage!, fit: BoxFit.contain),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ],
           ),
