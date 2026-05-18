@@ -38,14 +38,28 @@ class ApiService {
     }
     request.files.add(await http.MultipartFile.fromPath('image', imagePath));
 
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
+    try {
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
 
-    if (response.statusCode != 200) {
-      throw Exception('Falha ao processar a imagem: ${response.statusCode}');
+      if (response.statusCode != 200) {
+        // Tenta decodificar uma mensagem de erro mais detalhada do backend
+        try {
+          final errorBody = jsonDecode(response.body);
+          final detail = errorBody['detail'] ?? response.body;
+          throw Exception('Falha no servidor (${response.statusCode}): $detail');
+        } catch (_) {
+          throw Exception('Falha ao processar a imagem: ${response.statusCode}');
+        }
+      }
+
+      final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+      return ProcessResponse.fromJson(jsonResponse);
+    } on SocketException {
+      throw Exception(
+          'Erro de conexão: Não foi possível encontrar o servidor. Verifique sua internet ou tente novamente em um minuto, pois o servidor pode estar "acordando".');
+    } catch (e) {
+      throw Exception('Ocorreu um erro inesperado: $e');
     }
-
-    final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
-    return ProcessResponse.fromJson(jsonResponse);
   }
 }
