@@ -1,5 +1,6 @@
 import os
 import time
+from pathlib import Path
 from google import genai
 from google.genai import types
 from PIL import Image
@@ -12,14 +13,22 @@ import numpy as np
 # Pegando a chave de API das variáveis de ambiente por segurança
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-if GEMINI_API_KEY:
-    client = genai.Client(api_key=GEMINI_API_KEY)
+BASE_DIR = Path(os.environ.get(
+    "TOPO_AGENT_BASE_DIR",
+    r"C:\Users\Juan Sales\OneDrive\Desktop\Personalizados\topo\Imagens",
+)).expanduser()
+INPUT_PATH = BASE_DIR / os.environ.get("TOPO_AGENT_INPUT_NAME", "teste.jpg")
+OUTPUT_COLOR_PATH = BASE_DIR / os.environ.get("TOPO_AGENT_COLOR_OUTPUT_NAME", "topo_fiel_pronto.png")
+OUTPUT_MASK_PATH = BASE_DIR / os.environ.get("TOPO_AGENT_MASK_OUTPUT_NAME", "topo_mascara_corte.png")
+ARCHIVE_DIR = BASE_DIR / "processed"
+POLL_SECONDS = int(os.environ.get("TOPO_AGENT_POLL_SECONDS", "5"))
+MIN_CONTOUR_AREA = int(os.environ.get("TOPO_AGENT_MIN_CONTOUR_AREA", "150"))
 
-# Caminhos das suas pastas no computador
-DIRETORIO_BASE = "C:\\Users\\Juan Sales\\OneDrive\\Desktop\\Personalizados\\topo\\Imagens\\"
-IMAGEM_ENTRADA = os.path.join(DIRETORIO_BASE, "teste.jpg")
-SAIDA_COLORIDA = os.path.join(DIRETORIO_BASE, "topo_fiel_pronto.png")
-SAIDA_MASCARA  = os.path.join(DIRETORIO_BASE, "topo_mascara_corte.png")
+
+def carregar_client_gemini():
+    if not GEMINI_API_KEY:
+        raise RuntimeError("A variável de ambiente GEMINI_API_KEY não foi encontrada.")
+    return genai.Client(api_key=GEMINI_API_KEY)
 
 # Prompts do Agente
 PROMPT_ANALISE = """
@@ -48,15 +57,15 @@ def rodar_fluxo_agente_completo():
     print("=== AGENTE AUTÔNOMO ACTIVADO: PROCESSANDO TOPO DE BOLO ===")
     print("="*70)
     
-    if not os.path.exists(IMAGEM_ENTRADA):
-        print(f"[Aguardando] Nenhuma imagem encontrada para processar em: {IMAGEM_ENTRADA}")
+    if not INPUT_PATH.exists():
+        print(f"[Aguardando] Nenhuma imagem encontrada para processar em: {INPUT_PATH}")
         return False
 
     print(f"\n[Passo 1] Imagem detectada! Iniciando análise conceitual com Gemini...")
-    img_pil = Image.open(IMAGEM_ENTRADA)
-    
-    # --- FASE 1: LEITURA DA IA ---
+    img_pil = Image.open(INPUT_PATH)
+
     try:
+        client = carregar_client_gemini()
         response_analise = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=[PROMPT_ANALISE, img_pil]
@@ -86,8 +95,8 @@ def rodar_fluxo_agente_completo():
         for part in resultado_imagem.parts:
             if part.inline_data is not None or hasattr(part, 'as_image'):
                 imagem_final = part.as_image()
-                imagem_final.save(SAIDA_COLORIDA)
-                print(f"[Sucesso] Folha limpa colorida salva em: {SAIDA_COLORIDA}")
+                imagem_final.save(OUTPUT_COLOR_PATH)
+                print(f"[Sucesso] Folha limpa colorida salva em: {OUTPUT_COLOR_PATH}")
                 imagem_salva = True
                 break
                 
@@ -105,7 +114,7 @@ def rodar_fluxo_agente_completo():
     # --- FASE 3: DETECÇÃO DE SILHUETA E MÁSCARA AUTOMÁTICA ---
     print("\n[Passo 3] OpenCV assumindo o controle: Extraindo linhas de contorno...")
     try:
-        img_recriada = cv2.imread(SAIDA_COLORIDA)
+        img_recriada = cv2.imread(str(OUTPUT_COLOR_PATH))
         altura, largura, _ = img_recriada.shape
         
         cinza = cv2.cvtColor(img_recriada, cv2.COLOR_BGR2GRAY)
@@ -122,14 +131,15 @@ def rodar_fluxo_agente_completo():
             cv2.drawContours(tela_mascara, [c], -1, (0, 0, 0), thickness=cv2.FILLED)
             elementos_contados += 1
             
-        cv2.imwrite(SAIDA_MASCARA, tela_mascara)
+        cv2.imwrite(str(OUTPUT_MASK_PATH), tela_mascara)
         print(f"[Sucesso] Máscara de corte gerada perfeitamente com {elementos_contados} facas.")
-        print(f"[Sucesso] Arquivo salvo em: {SAIDA_MASCARA}")
+        print(f"[Sucesso] Arquivo salvo em: {OUTPUT_MASK_PATH}")
         
-        # --- LIMPEZA DE ARQUIVO ORIGINAL ---
-        # Deleta ou renomeia o 'teste.jpg' original para o script saber que já processou ele
-        os.remove(IMAGEM_ENTRADA)
-        print("\n[Concluído] Imagem original limpa da fila. Pronto para o Silhouette Studio!")
+        # --- ARQUIVO ORIGINAL ---
+        ARCHIVE_DIR.mkdir(exist_ok=True, parents=True)
+        archive_path = ARCHIVE_DIR / INPUT_PATH.name
+        INPUT_PATH.replace(archive_path)
+        print(f"\n[Concluído] Imagem original movida para o arquivo de processados: {archive_path}")
         return True
         
     except Exception as e:
@@ -145,11 +155,15 @@ if __name__ == "__main__":
     else:
         print("="*70)
         print(" O AGENTE ESTÁ ATIVO E MONITORANDO A SUA PASTA DE IMPRESSÃO ")
-        print(" Jogue um arquivo chamado 'teste.jpg' na pasta para iniciar o show...")
+        print(f" Entrada: {INPUT_PATH}")
+        print(f" Saída colorida: {OUTPUT_COLOR_PATH}")
+        print(f" Saída máscara: {OUTPUT_MASK_PATH}")
+        print(f" Arquivo processado arquivado em: {ARCHIVE_DIR}")
+        print(f" A cada {POLL_SECONDS} segundos a pasta será verificada.")
         print(" Para fechar o agente, pressione CTRL + C no terminal.")
         print("="*70)
         
         while True:
-            # O script fica vigiando a pasta a cada 5 segundos
+            # O script fica vigiando a pasta a cada POLL_SECONDS
             rodar_fluxo_agente_completo()
-            time.sleep(5)
+            time.sleep(POLL_SECONDS)
