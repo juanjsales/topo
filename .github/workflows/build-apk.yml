@@ -22,7 +22,7 @@ jobs:
       - name: Create Flutter project files if missing
         working-directory: mobile_flutter
         run: |
-          flutter create .
+          flutter create --overwrite .
 
       - name: Install dependencies
         working-directory: mobile_flutter
