@@ -1,0 +1,1 @@
+flutter build apk --releasecd mobile_flutter
