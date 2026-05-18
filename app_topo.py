@@ -338,6 +338,16 @@ def _open_image_from_bytes(raw_data):
                 img = _open_image_from_bytes(raw_data[key])
                 if img is not None:
                     return img
+
+    for attr in ("data", "content", "image", "bytes", "base64"):
+        if hasattr(raw_data, attr):
+            try:
+                img = _open_image_from_bytes(getattr(raw_data, attr))
+                if img is not None:
+                    return img
+            except Exception:
+                pass
+
     return None
 
 
