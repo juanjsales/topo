@@ -313,6 +313,55 @@ def extrair_descricao(client, imagem: Image.Image) -> str:
     return resp.text.strip()
 
 
+def _open_image_from_bytes(raw_data):
+    if raw_data is None:
+        return None
+    if isinstance(raw_data, Image.Image):
+        return raw_data
+    if isinstance(raw_data, (bytes, bytearray)):
+        try:
+            return Image.open(io.BytesIO(raw_data))
+        except Exception:
+            return None
+    if isinstance(raw_data, str):
+        try:
+            decoded = base64.b64decode(raw_data)
+            return Image.open(io.BytesIO(decoded))
+        except Exception:
+            try:
+                return Image.open(io.BytesIO(raw_data.encode("utf-8")))
+            except Exception:
+                return None
+    if isinstance(raw_data, dict):
+        for key in ("image", "inline_data", "data", "content", "bytes", "base64"):
+            if key in raw_data:
+                img = _open_image_from_bytes(raw_data[key])
+                if img is not None:
+                    return img
+    return None
+
+
+def _extract_image_from_part(part):
+    if hasattr(part, "as_image"):
+        try:
+            img = part.as_image()
+            if isinstance(img, Image.Image):
+                return img
+        except Exception:
+            pass
+
+    for attr in ("inline_data", "image", "data", "content", "bytes", "base64"):
+        raw = getattr(part, attr, None)
+        img = _open_image_from_bytes(raw)
+        if img is not None:
+            return img
+
+    if isinstance(part, dict):
+        return _open_image_from_bytes(part)
+
+    return None
+
+
 @retry()
 def gerar_folha(client, descricao: str, imagem: Image.Image) -> Image.Image:
     prompt = PROMPT_GENERATION_TEMPLATE.format(descricao_elementos=descricao)
@@ -322,33 +371,20 @@ def gerar_folha(client, descricao: str, imagem: Image.Image) -> Image.Image:
         contents=[prompt, imagem],
         config=config,
     )
-    for part in result.parts:
-        if hasattr(part, "as_image"):
-            img = part.as_image()
-            if isinstance(img, Image.Image):
-                return img.convert("RGB")
 
-        inline_data = getattr(part, "inline_data", None)
-        if inline_data is not None:
-            try:
-                raw_data = inline_data
-                if isinstance(raw_data, str):
-                    raw_data = base64.b64decode(raw_data)
-                img = Image.open(io.BytesIO(raw_data))
-                return img.convert("RGB")
-            except Exception:
-                pass
+    # Tenta extrair imagem de cada parte do resultado
+    for part in getattr(result, "parts", []):
+        img = _extract_image_from_part(part)
+        if isinstance(img, Image.Image):
+            return img.convert("RGB")
 
-        part_image = getattr(part, "image", None)
-        if isinstance(part_image, Image.Image):
-            return part_image.convert("RGB")
-        if isinstance(part_image, (bytes, bytearray)):
-            try:
-                img = Image.open(io.BytesIO(part_image))
-                return img.convert("RGB")
-            except Exception:
-                pass
+    # Fallbacks adicionais, caso o SDK retorne o conteúdo em outro campo
+    for attr in ("image", "output", "output_image", "output_images", "data", "result"):
+        img = _open_image_from_bytes(getattr(result, attr, None))
+        if isinstance(img, Image.Image):
+            return img.convert("RGB")
 
+    logger.warning("Nenhuma imagem encontrada no resultado do Gemini: %s", repr(result))
     raise RuntimeError("Gemini não retornou imagem válida. Tente novamente.")
 
 
