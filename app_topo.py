@@ -64,13 +64,82 @@ def aplicar_css_personalizado():
             }
 
             .block-container {
-                padding-top: 1.75rem !important;
-                padding-bottom: 1.75rem !important;
+                padding-top: 2rem !important;
+                padding-bottom: 2rem !important;
+                max-width: 1200px;
             }
 
-            h1, h2, h3 {
-                font-family: 'Inter', sans-serif;
+            .hero {
+                padding: 2rem;
+                border-radius: 24px;
+                background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(16, 185, 129, 0.12));
+                border: 1px solid rgba(59, 130, 246, 0.18);
+                box-shadow: 0 30px 80px rgba(15, 23, 42, 0.08);
+                margin-bottom: 1.5rem;
+            }
+
+            .hero h1 {
+                margin-bottom: 0.25rem;
+                font-size: 2.6rem;
+                letter-spacing: -0.04em;
+            }
+
+            .hero p {
+                font-size: 1.05rem;
+                line-height: 1.8;
+                color: #334155;
+            }
+
+            .step-card {
+                background: #ffffff;
+                border-radius: 18px;
+                padding: 1.4rem;
+                border: 1px solid #E2E8F0;
+                box-shadow: 0 16px 40px rgba(15, 23, 42, 0.06);
+                margin-bottom: 1rem;
+            }
+
+            .step-card h3 {
+                margin-top: 0;
+                margin-bottom: 0.5rem;
                 color: #0F172A;
+            }
+
+            .step-card p {
+                margin: 0;
+                color: #475569;
+            }
+
+            .stButton > button,
+            .stDownloadButton > button {
+                background-color: #2563EB;
+                color: white;
+                border-radius: 999px;
+                border: none;
+                padding: 0.85rem 1.2rem;
+                font-weight: 700;
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+            }
+
+            .stButton > button:hover,
+            .stDownloadButton > button:hover {
+                background-color: #1D4ED8;
+                box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
+                transform: translateY(-1px);
+            }
+
+            .stTextInput > div > div > input,
+            .stFileUploader,
+            .stMarkdown {
+                border-radius: 14px;
+            }
+
+            .stProgress > div > div > div {
+                background: linear-gradient(90deg, #3B82F6, #10B981);
+            }
+
+            .stAlert {
+                border-radius: 18px;
             }
         </style>
         """,
@@ -143,8 +212,45 @@ def main():
     )
     aplicar_css_personalizado()
 
-    st.title(PAGE_TITLE)
-    st.markdown("Transforme prints de bolos e referências em folhas limpas com máscaras de corte instantâneas para o **Silhouette Studio**.")
+    st.markdown(
+        """
+        <div class='hero'>
+            <h1>{title}</h1>
+            <p>Transforme prints de bolos e referências em folhas limpas com máscaras de corte automáticas para o <strong>Silhouette Studio</strong>, em apenas alguns cliques.</p>
+        </div>
+        """.format(title=PAGE_TITLE),
+        unsafe_allow_html=True,
+    )
+
+    col1, col2, col3 = st.columns(3)
+    col1.markdown(
+        """
+        <div class='step-card'>
+            <h3>1. Envio</h3>
+            <p>Faça upload da foto ou print do bolo de cliente. Qualquer imagem clara serve.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    col2.markdown(
+        """
+        <div class='step-card'>
+            <h3>2. Processamento</h3>
+            <p>Gemini analisa e recria os elementos principais do topo com fundo branco.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    col3.markdown(
+        """
+        <div class='step-card'>
+            <h3>3. Download</h3>
+            <p>Baixe a folha de corte e a máscara pronta para usar no Silhouette Studio.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.write("---")
 
     with st.sidebar:
@@ -154,11 +260,19 @@ def main():
             """
             **Como usar:**
             1. Cole sua chave de API válida acima.
-            2. Faça o upload do print ou foto do bolo.
+            2. Faça o upload da imagem de referência.
             3. Clique em **Processar e Recriar Topo**.
             4. Baixe a folha colorida e a máscara de corte.
             """
         )
+        st.markdown("---")
+        st.subheader("Dicas rápidas")
+        st.write(
+            "- Use imagens com boa iluminação e foco no topo do bolo.\n"
+            "- Evite fotos com bordas muito escuras ou fundos complexos.\n"
+            "- Arquivos JPG/PNG funcionam melhor."
+        )
+        st.info("Sua chave de API fica segura no navegador enquanto o app estiver aberto.")
 
     api_key = api_key_input.strip() or os.environ.get("GEMINI_API_KEY", "").strip()
     uploaded_file = st.file_uploader("Arraste ou selecione a imagem de referência", type=["png", "jpg", "jpeg"])
