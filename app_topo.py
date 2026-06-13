@@ -27,9 +27,9 @@ PAGE_ICON  = "✂️"
 MAX_IMAGE_DIMENSION = 1536
 MAX_FILE_SIZE_MB    = 10
 RETRY_ATTEMPTS      = 3
-RETRY_DELAY_SECONDS = 5  # Aumentado um pouco para dar tempo de a cota por minuto respirar
+RETRY_DELAY_SECONDS = 5  # Margem segura para controle de requisições por minuto
 GEMINI_ANALYSIS_MODEL = "gemini-2.5-flash"
-GEMINI_IMAGE_MODEL    = "imagen-3.0-generate-002"  # Atualizado para o modelo estável de produção
+GEMINI_IMAGE_MODEL    = "imagen-3.0-generate-002"  # Modelo correto de geração de imagens
 
 CUSTOM_CSS = """
 <style>
@@ -313,91 +313,29 @@ def extrair_descricao(client, imagem: Image.Image) -> str:
     return resp.text.strip()
 
 
-def _open_image_from_bytes(raw_data):
-    if raw_data is None:
-        return None
-    if isinstance(raw_data, Image.Image):
-        return raw_data
-    if isinstance(raw_data, (bytes, bytearray)):
-        try:
-            return Image.open(io.BytesIO(raw_data))
-        except Exception:
-            return None
-    if isinstance(raw_data, str):
-        try:
-            decoded = base64.b64decode(raw_data)
-            return Image.open(io.BytesIO(decoded))
-        except Exception:
-            try:
-                return Image.open(io.BytesIO(raw_data.encode("utf-8")))
-            except Exception:
-                return None
-    if isinstance(raw_data, dict):
-        for key in ("image", "inline_data", "data", "content", "bytes", "base64"):
-            if key in raw_data:
-                img = _open_image_from_bytes(raw_data[key])
-                if img is not None:
-                    return img
-
-    for attr in ("data", "content", "image", "bytes", "base64"):
-        if hasattr(raw_data, attr):
-            try:
-                img = _open_image_from_bytes(getattr(raw_data, attr))
-                if img is not None:
-                    return img
-            except Exception:
-                pass
-
-    return None
-
-
-def _extract_image_from_part(part):
-    if hasattr(part, "as_image"):
-        try:
-            img = part.as_image()
-            if isinstance(img, Image.Image):
-                return img
-        except Exception:
-            pass
-
-    for attr in ("inline_data", "image", "data", "content", "bytes", "base64"):
-        raw = getattr(part, attr, None)
-        img = _open_image_from_bytes(raw)
-        if img is not None:
-            return img
-
-    if isinstance(part, dict):
-        return _open_image_from_bytes(part)
-
-    return None
-
-
 @retry()
 def gerar_folha(client, descricao: str, imagem: Image.Image) -> Image.Image:
-    # Construímos o prompt detalhado usando a descrição que o passo 1 gerou
     prompt = PROMPT_GENERATION_TEMPLATE.format(descricao_elementos=descricao)
     
-    # O modelo Imagen exige que passemos apenas o texto no contents
-    config = types.GenerateContentConfig(response_modalities=["IMAGE"])
-    result = client.models.generate_content(
+    # Executando a requisição usando a rota correta do novo SDK do Imagen
+    result = client.models.generate_images(
         model=GEMINI_IMAGE_MODEL,
-        contents=prompt,  # Passamos apenas o prompt em texto aqui
-        config=config,
+        prompt=prompt,
+        config=types.GenerateImagesConfig(
+            number_of_images=1,
+            output_mime_type="image/png",
+            aspect_ratio="4:3",
+            person_generation="ALLOW_ADULT",
+        )
     )
 
-    # Tenta extrair imagem de cada parte do resultado (mantém os seus fallbacks que estão ótimos)
-    for part in getattr(result, "parts", []):
-        img = _extract_image_from_part(part)
-        if isinstance(img, Image.Image):
-            return img.convert("RGB")
+    # Extrai diretamente os bytes estruturados sem necessidade de varrer partes
+    if result and hasattr(result, "generated_images") and result.generated_images:
+        img_bytes = result.generated_images[0].image.image_bytes
+        return Image.open(io.BytesIO(img_bytes)).convert("RGB")
 
-    for attr in ("image", "output", "output_image", "output_images", "data", "result"):
-        img = _open_image_from_bytes(getattr(result, attr, None))
-        if isinstance(img, Image.Image):
-            return img.convert("RGB")
-
-    logger.warning("Nenhuma imagem encontrada no resultado do Gemini: %s", repr(result))
-    raise RuntimeError("O motor de imagem não retornou uma mídia válida. Tente novamente.")
+    logger.warning("Nenhuma imagem encontrada no resultado do Imagen: %s", repr(result))
+    raise RuntimeError("O motor Imagen não gerou a folha de elementos. Tente novamente.")
 
 
 def gerar_mascara(img: Image.Image, min_area: int = 200) -> Image.Image:
@@ -495,7 +433,7 @@ def main():
             </div>
             <div class='step'>
                 <div class='step-num'>2</div>
-                <h4>IA recria os elements</h4>
+                <h4>IA recria os elementos</h4>
                 <p>Gemini identifica o tema e gera folha isolada com fundo branco.</p>
             </div>
             <div class='step'>
