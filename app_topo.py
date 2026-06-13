@@ -27,13 +27,13 @@ PAGE_ICON  = "✂️"
 MAX_IMAGE_DIMENSION = 1536
 MAX_FILE_SIZE_MB    = 10
 RETRY_ATTEMPTS      = 3
-RETRY_DELAY_SECONDS = 2
+RETRY_DELAY_SECONDS = 5  # Aumentado um pouco para dar tempo de a cota por minuto respirar
 GEMINI_ANALYSIS_MODEL = "gemini-2.5-flash"
-GEMINI_IMAGE_MODEL    = "gemini-2.5-flash-image"
+GEMINI_IMAGE_MODEL    = "gemini-2.5-flash"  # Atualizado para o modelo estável de produção
 
 CUSTOM_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Nunito:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght=600;700&family=Nunito:wght=400;600;700;800&display=swap');
 
 :root {
     --coral:       #E8736A;
@@ -493,7 +493,7 @@ def main():
             </div>
             <div class='step'>
                 <div class='step-num'>2</div>
-                <h4>IA recria os elementos</h4>
+                <h4>IA recria os elements</h4>
                 <p>Gemini identifica o tema e gera folha isolada com fundo branco.</p>
             </div>
             <div class='step'>
@@ -530,7 +530,7 @@ def main():
 
     col_img, col_info = st.columns([1, 1])
     with col_img:
-        st.image(img_original, caption="Referência enviada", width="stretch")
+        st.image(img_original, caption="Referência enviada", use_container_width=True)
     with col_info:
         st.markdown(
             f"""
@@ -553,7 +553,7 @@ def main():
     st.markdown("<br>", unsafe_allow_html=True)
     col_btn, _ = st.columns([1, 2])
     with col_btn:
-        iniciar = st.button("✂️ Gerar Folha de Corte", width="stretch")
+        iniciar = st.button("✂️ Gerar Folha de Corte")
 
     if not iniciar:
         return
@@ -594,25 +594,23 @@ def main():
         col_c, col_m = st.columns(2)
         with col_c:
             st.markdown("<div class='result-wrap'><h4>🖼️ Folha de Elementos</h4>", unsafe_allow_html=True)
-            st.image(img_colorida, caption="Pronta para imprimir", width="stretch")
+            st.image(img_colorida, caption="Pronta para imprimir", use_container_width=True)
             st.download_button(
                 "💾 Baixar Folha Colorida (.png)",
                 data=imagem_para_bytes(img_colorida),
                 file_name="topo_elementos.png",
                 mime="image/png",
-                width="stretch",
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
         with col_m:
             st.markdown("<div class='result-wrap'><h4>✂️ Máscara de Corte</h4>", unsafe_allow_html=True)
-            st.image(mascara, caption="Importe no Silhouette Studio", width="stretch")
+            st.image(mascara, caption="Importe no Silhouette Studio", use_container_width=True)
             st.download_button(
                 "💾 Baixar Máscara de Corte (.png)",
                 data=imagem_para_bytes(mascara),
                 file_name="topo_mascara_corte.png",
                 mime="image/png",
-                width="stretch",
             )
             st.markdown("</div>", unsafe_allow_html=True)
 
