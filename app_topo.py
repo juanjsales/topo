@@ -29,7 +29,7 @@ MAX_FILE_SIZE_MB    = 10
 RETRY_ATTEMPTS      = 3
 RETRY_DELAY_SECONDS = 5  # Aumentado um pouco para dar tempo de a cota por minuto respirar
 GEMINI_ANALYSIS_MODEL = "gemini-2.5-flash"
-GEMINI_IMAGE_MODEL    = "gemini-2.5-flash"  # Atualizado para o modelo estável de produção
+GEMINI_IMAGE_MODEL    = "imagen-3.0-generate-002"  # Atualizado para o modelo estável de produção
 
 CUSTOM_CSS = """
 <style>
@@ -374,28 +374,30 @@ def _extract_image_from_part(part):
 
 @retry()
 def gerar_folha(client, descricao: str, imagem: Image.Image) -> Image.Image:
+    # Construímos o prompt detalhado usando a descrição que o passo 1 gerou
     prompt = PROMPT_GENERATION_TEMPLATE.format(descricao_elementos=descricao)
+    
+    # O modelo Imagen exige que passemos apenas o texto no contents
     config = types.GenerateContentConfig(response_modalities=["IMAGE"])
     result = client.models.generate_content(
         model=GEMINI_IMAGE_MODEL,
-        contents=[prompt, imagem],
+        contents=prompt,  # Passamos apenas o prompt em texto aqui
         config=config,
     )
 
-    # Tenta extrair imagem de cada parte do resultado
+    # Tenta extrair imagem de cada parte do resultado (mantém os seus fallbacks que estão ótimos)
     for part in getattr(result, "parts", []):
         img = _extract_image_from_part(part)
         if isinstance(img, Image.Image):
             return img.convert("RGB")
 
-    # Fallbacks adicionais, caso o SDK retorne o conteúdo em outro campo
     for attr in ("image", "output", "output_image", "output_images", "data", "result"):
         img = _open_image_from_bytes(getattr(result, attr, None))
         if isinstance(img, Image.Image):
             return img.convert("RGB")
 
     logger.warning("Nenhuma imagem encontrada no resultado do Gemini: %s", repr(result))
-    raise RuntimeError("Gemini não retornou imagem válida. Tente novamente.")
+    raise RuntimeError("O motor de imagem não retornou uma mídia válida. Tente novamente.")
 
 
 def gerar_mascara(img: Image.Image, min_area: int = 200) -> Image.Image:
