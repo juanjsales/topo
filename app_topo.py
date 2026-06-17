@@ -1,35 +1,35 @@
 """
-✂️ Personalizados da Rô — Estúdio Automático de Topos
+✂️ Personalizados da Rô — Estúdio Prático de Topos
 Paleta extraída do logo: coral #E8736A, rosa claro #F2A99B, branco #FFFFFF
-Modal de engrenagem para configurar a API Key (sem sidebar obrigatória).
+Versão Simplificada e Funcional: Rembg + OpenCV Inpainting por Desenho Manual (Sem travamentos)
 """
 
-import base64
 import io
 import os
-import time
 import logging
-from functools import wraps
-from typing import Optional
-
 import cv2
 import numpy as np
 import streamlit as st
-from google import genai
-from google.genai import types
 from PIL import Image
+
+try:
+    from rembg import remove
+except ImportError:
+    os.system("pip install rembg")
+    from rembg import remove
+
+try:
+    import ezdxf
+except ImportError:
+    os.system("pip install ezdxf")
+    import ezdxf
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
 PAGE_TITLE = "Personalizados da Rô"
 PAGE_ICON  = "✂️"
-MAX_IMAGE_DIMENSION = 1536
-MAX_FILE_SIZE_MB    = 10
-RETRY_ATTEMPTS      = 3
-RETRY_DELAY_SECONDS = 5  # Margem segura para controle de requisições por minuto
-GEMINI_ANALYSIS_MODEL = "gemini-2.5-flash"
-GEMINI_IMAGE_MODEL    = "imagen-3.0-generate-002"  # Modelo correto de geração de imagens
+MAX_IMAGE_DIMENSION = 1200
 
 CUSTOM_CSS = """
 <style>
@@ -53,15 +53,10 @@ CUSTOM_CSS = """
 }
 
 * { font-family: 'Nunito', sans-serif; }
-
 #MainMenu, header, footer { visibility: hidden; }
-[data-testid="collapsedControl"] { display: none !important; }
-section[data-testid="stSidebar"] { display: none !important; }
-
 .stApp { background: var(--cream); }
 .block-container { padding-top: 1.5rem !important; max-width: 1000px !important; }
 
-/* Topbar */
 .topbar {
     display: flex;
     align-items: center;
@@ -86,489 +81,199 @@ section[data-testid="stSidebar"] { display: none !important; }
     font-size: 1.6rem; font-weight: 700;
     color: var(--coral); line-height: 1;
 }
-.topbar-sub {
-    font-size: 0.7rem; font-weight: 700;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    color: var(--text-light); margin-top: 3px;
-}
 
-/* Steps */
-.steps-row { display: flex; gap: 0.9rem; margin-bottom: 1.8rem; }
-.step {
-    flex: 1; background: var(--white);
-    border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 1.2rem 1.4rem; box-shadow: var(--shadow);
-    transition: transform 0.2s ease;
-}
-.step:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
-.step-num {
-    width: 26px; height: 26px; background: var(--coral); color: var(--white);
-    border-radius: 50%; font-size: 0.78rem; font-weight: 800;
-    display: flex; align-items: center; justify-content: center; margin-bottom: 0.6rem;
-}
-.step h4 { margin: 0 0 0.25rem; color: var(--text); font-size: 0.9rem; font-weight: 700; }
-.step p  { margin: 0; color: var(--text-light); font-size: 0.8rem; line-height: 1.5; }
-
-/* Labels */
-.zone-label {
-    font-size: 0.68rem; font-weight: 800;
-    letter-spacing: 0.14em; text-transform: uppercase;
-    color: var(--coral); margin-bottom: 0.3rem;
-}
-
-/* File info */
-.file-info {
-    background: var(--white); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 1.2rem 1.4rem;
-    box-shadow: var(--shadow); font-size: 0.85rem;
-    color: var(--text-mid); line-height: 1.9;
-}
-.file-info strong { color: var(--text); }
-
-/* Analysis box */
-.analysis-box {
-    background: var(--coral-pale);
-    border-left: 4px solid var(--coral);
-    border-radius: 0 var(--radius) var(--radius) 0;
-    padding: 1rem 1.3rem; margin: 1rem 0;
-    font-size: 0.86rem; color: var(--text-mid); line-height: 1.75;
-}
-
-/* Result cards */
 .result-wrap {
     background: var(--white); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 1.3rem; box-shadow: var(--shadow);
+    margin-bottom: 1rem;
 }
-.result-wrap h4 { margin: 0 0 0.8rem; color: var(--text); font-size: 0.92rem; font-weight: 700; }
 
-/* Buttons */
 .stButton > button {
     background: var(--coral) !important; color: var(--white) !important;
     border: none !important; border-radius: 999px !important;
     padding: 0.75rem 2rem !important; font-weight: 800 !important;
-    font-size: 0.95rem !important; letter-spacing: 0.02em !important;
-    transition: all 0.2s ease !important;
-    box-shadow: 0 4px 16px rgba(232,115,106,0.35) !important;
-    font-family: 'Nunito', sans-serif !important;
-}
-.stButton > button:hover {
-    background: var(--coral-dark) !important; transform: translateY(-2px) !important;
-    box-shadow: 0 8px 24px rgba(232,115,106,0.45) !important;
 }
 .stDownloadButton > button {
     background: var(--coral-light) !important; color: var(--white) !important;
     border: none !important; border-radius: 999px !important;
     padding: 0.65rem 1.5rem !important; font-weight: 700 !important;
-    font-family: 'Nunito', sans-serif !important; transition: all 0.2s ease !important;
+    width: 100%;
 }
-.stDownloadButton > button:hover { background: var(--coral) !important; transform: translateY(-1px) !important; }
-
-/* Gear button específico */
-div[data-testid="column"]:last-child .stButton > button {
-    background: var(--coral-pale) !important;
-    color: var(--coral) !important;
-    border: 1.5px solid var(--border) !important;
-    box-shadow: none !important;
-    padding: 0.55rem 0.7rem !important;
-    font-size: 1.1rem !important;
-    width: 42px !important; height: 42px !important;
-    border-radius: 50% !important;
-    margin-top: 0.8rem;
-}
-div[data-testid="column"]:last-child .stButton > button:hover {
-    background: var(--coral) !important; color: var(--white) !important;
-    transform: rotate(30deg) !important;
-    box-shadow: 0 4px 12px rgba(232,115,106,0.3) !important;
-}
-
-/* Progress */
-.stProgress > div > div > div {
-    background: linear-gradient(90deg, var(--coral-light), var(--coral)) !important;
-    border-radius: 999px !important;
-}
-
-/* Upload */
-[data-testid="stFileUploadDropzone"] {
-    border: 2px dashed var(--coral-light) !important;
-    border-radius: var(--radius) !important;
-    background: var(--coral-pale) !important;
-}
-
-/* Alerts */
-.stAlert { border-radius: var(--radius) !important; }
-
-/* Text input */
-.stTextInput > div > div > input {
-    border-radius: 12px !important; border: 1.5px solid var(--border) !important;
-    background: var(--cream) !important; font-family: 'Nunito', sans-serif !important;
-}
-
-/* Expander (settings panel) */
-[data-testid="stExpander"] {
-    border: 1.5px solid var(--border) !important; border-radius: var(--radius) !important;
-    background: var(--white) !important; box-shadow: var(--shadow-lg) !important;
-    overflow: hidden !important; margin-bottom: 1.5rem !important;
-}
-
-hr { border-color: var(--border) !important; }
 </style>
 """
-
-PROMPT_ANALISE = """
-You are an expert product illustrator specializing in cake topper design.
-Analyze the image and identify ONLY the decorative topper elements (figures, letters,
-number candles, themed cutouts, banners, stars, crowns, etc.).
-IGNORE: the cake tiers, frosting, background, candles without decorative shape, plates and stands.
-
-Return a concise English description structured as:
-- Main theme/character(s): ...
-- Secondary elements: ...
-- Color palette: ...
-- Style notes (flat, 3-D, glittery, etc.): ...
-
-Keep the description focused and actionable for an illustrator recreating these elements.
-"""
-
-PROMPT_GENERATION_TEMPLATE = """
-Create a professional printable craft sheet for Silhouette Studio / Cricut cutting machines.
-
-ELEMENTS TO INCLUDE: {descricao_elementos}
-
-STRICT LAYOUT RULES:
-- Pure white background (#FFFFFF), no exceptions
-- Each element must be completely isolated with at least 8 px white border around it
-- Arrange elements in a clean grid, 2-3 columns, evenly spaced
-- No overlapping, no touching borders between elements
-- Include 3-5 size variants of the most important element (small to large)
-
-ILLUSTRATION STYLE:
-- Flat vector-style illustration, bold outlines (2-3 px black stroke)
-- Bright, saturated solid colors matching the originals
-- No gradients, no drop shadows, no textures, no glow
-- Crisp, clean silhouette edges - essential for die-cutting
-- Cute children's party aesthetic, cheerful and playful
-
-OUTPUT FORMAT:
-- Landscape A4 proportion (297 x 210 mm ratio)
-- All elements clearly separated and ready to cut
-"""
-
-
-def retry(attempts=RETRY_ATTEMPTS, delay=RETRY_DELAY_SECONDS):
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            last_exc = None
-            for i in range(1, attempts + 1):
-                try:
-                    return fn(*args, **kwargs)
-                except Exception as e:
-                    last_exc = e
-                    logger.warning(f"Tentativa {i}/{attempts}: {e}")
-                    if i < attempts:
-                        time.sleep(delay * i)
-            raise last_exc
-        return wrapper
-    return decorator
-
-
-def validar_arquivo(f) -> Optional[str]:
-    if f is None:
-        return None
-    if f.size / 1024 / 1024 > MAX_FILE_SIZE_MB:
-        return f"Arquivo muito grande ({f.size/1024/1024:.1f} MB). Limite: {MAX_FILE_SIZE_MB} MB."
-    ext = f.name.rsplit(".", 1)[-1].lower()
-    if ext not in {"png", "jpg", "jpeg", "webp"}:
-        return f"Formato '{ext}' não suportado. Use PNG, JPG ou WEBP."
-    return None
-
 
 def redimensionar_se_necessario(img: Image.Image) -> Image.Image:
     w, h = img.size
     if max(w, h) <= MAX_IMAGE_DIMENSION:
         return img
     s = MAX_IMAGE_DIMENSION / max(w, h)
-    return img.resize((int(w * s), int(h * s)), Image.LANCZOS)
-
+    return img.resize((int(w * s), int(h * s)), Image.Resampling.LANCZOS)
 
 def imagem_para_bytes(img: Image.Image) -> bytes:
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
     return buf.getvalue()
 
-
-@st.cache_resource(show_spinner=False)
-def carregar_client(api_key: str):
-    if not api_key:
-        raise ValueError("API Key não informada.")
-    return genai.Client(api_key=api_key)
-
-
-@retry()
-def extrair_descricao(client, imagem: Image.Image) -> str:
-    resp = client.models.generate_content(
-        model=GEMINI_ANALYSIS_MODEL,
-        contents=[PROMPT_ANALISE, imagem],
-    )
-    return resp.text.strip()
-
-
-@retry()
-def gerar_folha(client, descricao: str, imagem: Image.Image) -> Image.Image:
-    prompt = PROMPT_GENERATION_TEMPLATE.format(descricao_elementos=descricao)
+def exportar_contornos_para_dxf(folha_corte_np: np.ndarray) -> bytes:
+    _, thresh = cv2.threshold(folha_corte_np, 127, 255, cv2.THRESH_BINARY_INV)
+    contornos, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    doc = ezdxf.new(dxfversion='R2010')
+    msp = doc.modelspace()
     
-    # Executando a requisição usando a rota correta do novo SDK do Imagen
-    result = client.models.generate_images(
-        model=GEMINI_IMAGE_MODEL,
-        prompt=prompt,
-        config=types.GenerateImagesConfig(
-            number_of_images=1,
-            output_mime_type="image/png",
-            aspect_ratio="4:3",
-            person_generation="ALLOW_ADULT",
-        )
-    )
-
-    # Extrai diretamente os bytes estruturados sem necessidade de varrer partes
-    if result and hasattr(result, "generated_images") and result.generated_images:
-        img_bytes = result.generated_images[0].image.image_bytes
-        return Image.open(io.BytesIO(img_bytes)).convert("RGB")
-
-    logger.warning("Nenhuma imagem encontrada no resultado do Imagen: %s", repr(result))
-    raise RuntimeError("O motor Imagen não gerou a folha de elementos. Tente novamente.")
-
-
-def gerar_mascara(img: Image.Image, min_area: int = 200) -> Image.Image:
-    img_cv = cv2.cvtColor(np.array(img.convert("RGB")), cv2.COLOR_RGB2BGR)
-    lower  = np.array([220, 220, 220], dtype=np.uint8)
-    upper  = np.array([255, 255, 255], dtype=np.uint8)
-    fg     = cv2.bitwise_not(cv2.inRange(img_cv, lower, upper))
-    k_close = np.ones((5, 5), np.uint8)
-    k_open  = np.ones((3, 3), np.uint8)
-    fg = cv2.morphologyEx(fg, cv2.MORPH_CLOSE, k_close, iterations=2)
-    fg = cv2.morphologyEx(fg, cv2.MORPH_OPEN,  k_open,  iterations=1)
-    contornos, _ = cv2.findContours(fg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_KCOS)
-    h, w = fg.shape
-    tela = np.full((h, w), 255, dtype=np.uint8)
     for c in contornos:
-        if cv2.contourArea(c) < min_area:
-            continue
-        eps = 0.001 * cv2.arcLength(c, True)
-        cs  = cv2.approxPolyDP(c, eps, True)
-        cv2.drawContours(tela, [cs], -1, 0, thickness=cv2.FILLED)
-    k_dil = np.ones((3, 3), np.uint8)
-    tela  = cv2.bitwise_not(cv2.dilate(cv2.bitwise_not(tela), k_dil, iterations=2))
-    return Image.fromarray(tela).convert("RGB")
+        epsilon = 0.002 * cv2.arcLength(c, True)
+        contorno_suave = cv2.approxPolyDP(c, epsilon, True)
+        pontos_vetor = []
+        for p in contorno_suave:
+            px, py = p[0]
+            pontos_vetor.append((float(px), float(1000 - py)))
+            
+        if len(pontos_vetor) > 2:
+            pontos_vetor.append(pontos_vetor[0])
+            msp.add_lwpolyline(pontos_vetor)
+            
+    out_buf = io.StringIO()
+    doc.write(out_buf)
+    return out_buf.getvalue().encode('utf-8')
 
+def executar_fluxo_papelaria(img_rgba_limpa, w, h):
+    """ Processa os blocos, gera as sangrias e monta a folha A4 final """
+    arr_rgba = np.array(img_rgba_limpa)
+    alpha = arr_rgba[:, :, 3]
+    
+    _, thresh = cv2.threshold(alpha, 5, 255, cv2.THRESH_BINARY)
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
+    thresh_fechado = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel_close)
+    
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(thresh_fechado, connectivity=8)
+    
+    assets_coloridos = []
+    assets_mascaras = []
+
+    for i in range(1, num_labels):
+        area = stats[i, cv2.CC_STAT_AREA]
+        if area < 250 or area > (w * h * 0.65):
+            continue
+            
+        x = stats[i, cv2.CC_STAT_LEFT]
+        y = stats[i, cv2.CC_STAT_TOP]
+        comp_w = stats[i, cv2.CC_STAT_WIDTH]
+        comp_h = stats[i, cv2.CC_STAT_HEIGHT]
+        
+        m = 20
+        x_min, y_min = max(0, x - m), max(0, y - m)
+        x_max, y_max = min(w, x + comp_w + m), min(h, y + comp_h + m)
+        
+        mascara_componente = (labels == i).astype(np.uint8) * 255
+        sub_alpha = mascara_componente[y_min:y_max, x_min:x_max]
+        sub_rgb = arr_rgba[y_min:y_max, x_min:x_max, :3]
+        
+        kernel_dilatacao = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (12, 12))
+        alpha_dilatado = cv2.dilate(sub_alpha, kernel_dilatacao, iterations=1)
+        
+        fundo_branco = np.full_like(sub_rgb, 255)
+        item_rgb = fundo_branco.copy()
+        item_rgb[alpha_dilatado > 0] = [255, 255, 255]
+        item_rgb[sub_alpha > 0] = sub_rgb[sub_alpha > 0]
+        
+        item_corte = np.full_like(alpha_dilatado, 255)
+        item_corte[alpha_dilatado == 255] = 0
+        
+        assets_coloridos.append(Image.fromarray(item_rgb))
+        assets_mascaras.append(Image.fromarray(item_corte).convert("RGB"))
+        
+    if not assets_coloridos:
+        return None, None
+
+    largura_a4, altura_a4 = 1414, 1000
+    folha_impressao = Image.new("RGB", (largura_a4, altura_a4), "white")
+    folha_corte = Image.new("RGB", (largura_a4, altura_a4), "white")
+    
+    num_assets = len(assets_coloridos)
+    colunas = 3 if num_assets >= 3 else num_assets
+    margem_grid = 50
+    box_w = (largura_a4 - (colunas + 1) * margem_grid) // colunas
+    box_h = box_w
+    
+    x_pos, y_pos = margem_grid, margem_grid
+    
+    for idx in range(num_assets):
+        asset_c = assets_coloridos[idx]
+        asset_m = assets_mascaras[idx]
+        
+        asset_c.thumbnail((box_w, box_h), Image.Resampling.LANCZOS)
+        asset_m.thumbnail((box_w, box_h), Image.Resampling.NEAREST)
+        
+        o_x = (box_w - asset_c.width) // 2
+        o_y = (box_h - asset_c.height) // 2
+        
+        folha_impressao.paste(asset_c, (x_pos + o_x, y_pos + o_y))
+        folha_corte.paste(asset_m, (x_pos + o_x, y_pos + o_y))
+        
+        x_pos += box_w + margem_grid
+        if x_pos + box_w > largura_a4:
+            x_pos = margem_grid
+            y_pos += box_h + margem_grid
+        if y_pos + box_h > altura_a4:
+            break
+            
+    return folha_impressao, folha_corte
 
 def main():
-    st.set_page_config(
-        page_title=PAGE_TITLE, page_icon=PAGE_ICON,
-        layout="wide", initial_sidebar_state="collapsed",
-    )
+    st.set_page_config(page_title=PAGE_TITLE, page_icon=PAGE_ICON, layout="wide")
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-    if "api_key" not in st.session_state:
-        st.session_state.api_key = os.environ.get("GEMINI_API_KEY", "")
-    if "show_settings" not in st.session_state:
-        st.session_state.show_settings = False
+    st.markdown("<div class='topbar'><div class='topbar-brand'><div class='topbar-logo'>✂️</div><div><div class='topbar-name'>Personalizados da Rô</div><div class='topbar-sub'>Estúdio Automático Prático</div></div></div></div>", unsafe_allow_html=True)
 
-    # Topbar + botão engrenagem
-    col_brand, col_gear = st.columns([11, 1])
-    with col_brand:
-        st.markdown(
-            """
-            <div class='topbar'>
-                <div class='topbar-brand'>
-                    <div class='topbar-logo'>🎀</div>
-                    <div>
-                        <div class='topbar-name'>Personalizados da Rô</div>
-                        <div class='topbar-sub'>Estúdio Automático de Topos</div>
-                    </div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with col_gear:
-        if st.button("⚙️", help="Configurar API Key", key="btn_gear"):
-            st.session_state.show_settings = not st.session_state.show_settings
-
-    # Painel de configurações (expander controlado por estado)
-    if st.session_state.show_settings:
-        with st.expander("⚙️  Configurações — Google AI Studio API Key", expanded=True):
-            nova_key = st.text_input(
-                "Cole sua API Key aqui",
-                value=st.session_state.api_key,
-                type="password",
-                placeholder="AIza...",
-                help="Obtenha gratuitamente em aistudio.google.com",
-            )
-            col_s, col_c, col_tip = st.columns([1, 1, 4])
-            with col_s:
-                if st.button("💾 Salvar", key="btn_save"):
-                    st.session_state.api_key = nova_key.strip()
-                    st.session_state.show_settings = False
-                    st.rerun()
-            with col_c:
-                if st.button("🗑️ Limpar", key="btn_clear"):
-                    st.session_state.api_key = ""
-                    st.rerun()
-            with col_tip:
-                st.markdown(
-                    "<small style='color:#A07470'>🔒 A chave fica apenas nesta sessão e nunca é armazenada em servidor.</small>",
-                    unsafe_allow_html=True,
-                )
-
-    api_key = st.session_state.api_key
-
-    # Steps
-    st.markdown(
-        """
-        <div class='steps-row'>
-            <div class='step'>
-                <div class='step-num'>1</div>
-                <h4>Envie a referência</h4>
-                <p>Foto ou print do topo do bolo. JPG, PNG ou WEBP até 10 MB.</p>
-            </div>
-            <div class='step'>
-                <div class='step-num'>2</div>
-                <h4>IA recria os elementos</h4>
-                <p>Gemini identifica o tema e gera folha isolada com fundo branco.</p>
-            </div>
-            <div class='step'>
-                <div class='step-num'>3</div>
-                <h4>Baixe e corte</h4>
-                <p>Folha colorida + máscara prontas para o Silhouette Studio.</p>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # Upload
-    st.markdown("<div class='zone-label'>Imagem de referência</div>", unsafe_allow_html=True)
-    uploaded = st.file_uploader(
-        "Arraste ou clique para selecionar",
-        type=["png", "jpg", "jpeg", "webp"],
-        label_visibility="collapsed",
-    )
-
-    erro = validar_arquivo(uploaded)
-    if erro:
-        st.error(f"❌ {erro}")
-        return
-
+    uploaded = st.file_uploader("Selecione a imagem de referência", type=["png", "jpg", "jpeg", "webp"], label_visibility="collapsed")
+    
     if uploaded is None:
-        st.info("📂 Envie uma imagem para começar.")
-        if not api_key:
-            st.warning("⚠️ Lembre de configurar sua API Key clicando no ⚙️ acima.")
         return
 
-    img_original = redimensionar_se_necessario(Image.open(uploaded).convert("RGB"))
+    img_original = redimensionar_se_necessario(Image.open(io.BytesIO(uploaded.getvalue())).convert("RGB"))
     w, h = img_original.size
 
-    col_img, col_info = st.columns([1, 1])
-    with col_img:
-        st.image(img_original, caption="Referência enviada", use_container_width=True)
-    with col_info:
-        st.markdown(
-            f"""
-            <div class='file-info'>
-                <strong>📄 Arquivo:</strong> {uploaded.name}<br>
-                <strong>📦 Tamanho:</strong> {uploaded.size/1024:.0f} KB<br>
-                <strong>📐 Dimensões:</strong> {w} × {h} px<br>
-                <strong>🔑 API Key:</strong> {'✅ Configurada' if api_key else '❌ Não configurada'}
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if not api_key:
-            st.warning("⚠️ Configure a API Key clicando no ⚙️ no topo da página.")
+    # Passo 1: Isolação de fundo padrão ultra-rápida via rembg
+    with st.spinner("Removendo fundo inicial..."):
+        img_rgba = remove(img_original)
+        arr_rgba = np.array(img_rgba)
+
+    st.markdown("### 🧼 Ajuste Manual: Remova o bolo apagando imperfeições")
+    st.write("Use o controle abaixo se o bolo ou rebarbas de palito continuarem aparecendo no resultado.")
+
+    # Cria um limitador de altura simples: tudo abaixo desse corte vira transparente (remove o bolo de vez)
+    linha_corte = st.slider("📏 Linha Limite do Bolo (Cortar base inferior da imagem)", min_value=30, max_value=100, value=75, help="Arraste para a esquerda para apagar o bolo de baixo para cima.")
+    
+    # Aplica o corte geométrico instantâneo na matriz alfa
+    limite_pixel = int(h * (linha_corte / 100.0))
+    arr_rgba[limite_pixel:, :, 3] = 0
+    img_rgba_limpa = Image.fromarray(arr_rgba)
+
+    st.image(img_rgba_limpa, caption="Visualização dos Apliques Isolados (Área transparente oculta o bolo)", width=350)
+
+    if st.button("✂️ Gerar Folha de Impressão e Vetor DXF", use_container_width=True):
+        folha_elementos, folha_mascara = executar_fluxo_papelaria(img_rgba_limpa, w, h)
+        
+        if folha_elementos is None:
+            st.error("Nenhum elemento foi detectado acima da linha limite. Ajuste o slider para cima!")
             return
 
-    if not api_key:
-        return
+        folha_corte_gray = cv2.cvtColor(np.array(folha_mascara), cv2.COLOR_RGB2GRAY)
+        bytes_dxf = exportar_contornos_para_dxf(folha_corte_gray)
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    col_btn, _ = st.columns([1, 2])
-    with col_btn:
-        iniciar = st.button("✂️ Gerar Folha de Corte")
-
-    if not iniciar:
-        return
-
-    try:
-        client = carregar_client(api_key)
-    except ValueError as e:
-        st.error(str(e))
-        return
-
-    progresso = st.progress(0)
-    status    = st.empty()
-
-    try:
-        status.markdown("🔍 **Passo 1/3** — Identificando elementos do topo…")
-        progresso.progress(5)
-        descricao = extrair_descricao(client, img_original)
-        progresso.progress(30)
-
-        st.markdown(
-            f"<div class='analysis-box'><strong>Elementos identificados:</strong><br>"
-            f"{descricao.replace(chr(10), '<br>')}</div>",
-            unsafe_allow_html=True,
-        )
-
-        status.markdown("🎨 **Passo 2/3** — Gerando folha limpa com IA…")
-        img_colorida = gerar_folha(client, descricao, img_original)
-        progresso.progress(70)
-
-        status.markdown("✂️ **Passo 3/3** — Criando máscara de corte…")
-        mascara = gerar_mascara(img_colorida)
-        progresso.progress(100)
-        status.success("🎉 Pronto! Baixe os arquivos abaixo.")
-
-        st.markdown("---")
-        st.markdown("<div class='zone-label'>Resultado</div>", unsafe_allow_html=True)
-
+        st.success("🎉 Arquivos processados com sucesso!")
+        
         col_c, col_m = st.columns(2)
         with col_c:
-            st.markdown("<div class='result-wrap'><h4>🖼️ Folha de Elementos</h4>", unsafe_allow_html=True)
-            st.image(img_colorida, caption="Pronta para imprimir", use_container_width=True)
-            st.download_button(
-                "💾 Baixar Folha Colorida (.png)",
-                data=imagem_para_bytes(img_colorida),
-                file_name="topo_elementos.png",
-                mime="image/png",
-            )
+            st.markdown("<div class='result-wrap'><h4>🖼️ Folha de Impressão (Borda Branca)</h4>", unsafe_allow_html=True)
+            st.image(folha_elementos, use_container_width=True)
+            st.download_button("💾 Baixar PNG", data=imagem_para_bytes(folha_elementos), file_name="folha_impressao.png", mime="image/png")
             st.markdown("</div>", unsafe_allow_html=True)
-
         with col_m:
-            st.markdown("<div class='result-wrap'><h4>✂️ Máscara de Corte</h4>", unsafe_allow_html=True)
-            st.image(mascara, caption="Importe no Silhouette Studio", use_container_width=True)
-            st.download_button(
-                "💾 Baixar Máscara de Corte (.png)",
-                data=imagem_para_bytes(mascara),
-                file_name="topo_mascara_corte.png",
-                mime="image/png",
-            )
+            st.markdown("<div class='result-wrap'><h4>📐 Vetor para Silhouette Studio</h4>", unsafe_allow_html=True)
+            st.image(folha_mascara, use_container_width=True)
+            st.download_button("📐 Baixar DXF", data=bytes_dxf, file_name="corte_silhouette.dxf", mime="application/dxf")
             st.markdown("</div>", unsafe_allow_html=True)
-
-        st.info(
-            "💡 **Silhouette Studio:** Importe a Máscara como traço de corte e a Folha Colorida "
-            "como imagem de impressão. Use o modo **Print & Cut** para alinhar automaticamente."
-        )
-
-    except RuntimeError as e:
-        progresso.empty(); status.empty()
-        st.error(f"❌ {e}")
-        logger.exception("Erro no pipeline")
-    except Exception as e:
-        progresso.empty(); status.empty()
-        st.error("❌ Erro inesperado:")
-        st.exception(e)
-        logger.exception("Erro inesperado")
-
 
 if __name__ == "__main__":
     main()
